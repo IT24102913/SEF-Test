@@ -9,15 +9,11 @@ using UniReserve.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Bind to dynamic Railway PORT or all standard cloud ports (8080, 80, 5000)
+// Bind to dynamic PORT if provided, otherwise let ASPNETCORE_URLS or launchSettings handle binding
 var port = Environment.GetEnvironmentVariable("PORT");
 if (!string.IsNullOrEmpty(port))
 {
-    builder.WebHost.UseUrls($"http://0.0.0.0:{port}", $"http://+:{port}");
-}
-else
-{
-    builder.WebHost.UseUrls("http://0.0.0.0:8080", "http://0.0.0.0:80", "http://0.0.0.0:5000", "http://+:8080", "http://+:80");
+    builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 }
 
 // Add Database Context
@@ -176,10 +172,13 @@ static string GetNormalizedPostgresConnectionString(IConfiguration config)
         return $"Host={pgHost};Port={pgPort};Database={pgDb};Username={pgUser};Password={pgPass};Include Error Detail=true;SSL Mode=Prefer";
     }
 
+    var isDocker = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
+    var defaultHost = isDocker ? "host.docker.internal" : "localhost";
+
     if (string.IsNullOrEmpty(connStr))
     {
-        Console.WriteLine("[DATABASE CONFIG] No remote DATABASE_URL found. Falling back to local localhost:5432.");
-        return "Host=localhost;Port=5432;Database=unireserve_db;Username=postgres;Password=postgres123;Include Error Detail=true";
+        Console.WriteLine($"[DATABASE CONFIG] No remote DATABASE_URL found. Falling back to {defaultHost}:5432.");
+        return $"Host={defaultHost};Port=5432;Database=unireserve_db;Username=postgres;Password=postgres123;Include Error Detail=true";
     }
 
     if (connStr.StartsWith("postgres://") || connStr.StartsWith("postgresql://"))
