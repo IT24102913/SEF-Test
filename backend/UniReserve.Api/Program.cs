@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -9,12 +10,19 @@ using UniReserve.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Bind to dynamic PORT if provided, otherwise let ASPNETCORE_URLS or launchSettings handle binding
-var port = Environment.GetEnvironmentVariable("PORT");
-if (!string.IsNullOrEmpty(port))
+// Explicitly configure Kestrel to bind IPv4-only (IPAddress.Any = 0.0.0.0)
+// This bypasses AnyIPListenOptions which always attempts an IPv6 [::] bind
+// and causes SocketException (98) on containers where IPv6 port is pre-claimed.
+var rawPort = Environment.GetEnvironmentVariable("PORT")
+    ?? Environment.GetEnvironmentVariable("ASPNETCORE_HTTP_PORTS")
+    ?? "8080";
+if (!int.TryParse(rawPort, out var listenPort)) listenPort = 8080;
+
+builder.WebHost.ConfigureKestrel(serverOptions =>
 {
-    builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
-}
+    serverOptions.Listen(IPAddress.Any, listenPort);
+});
+Console.WriteLine($"[KESTREL] Listening on http://0.0.0.0:{listenPort} (IPv4 only)");
 
 // Add Database Context
 var connectionString = GetNormalizedPostgresConnectionString(builder.Configuration);
